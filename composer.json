@@ -1,0 +1,37 @@
+{
+    "name": "kungphu",
+    "description": "PHP library that kicks ass.",
+    "keywords": [
+        "testing", "data", "seed", "data generator", "kickass", "kung fu"
+    ],
+    "type" : "library",
+    "authors": [
+        {
+            "name" : "Vasi",
+            "homepage" : "https://github.com/vasi-grigo",
+            "role" : "Developer"
+        }
+    ],
+    "require": {},
+    "require-dev": {
+        "php": ">=5.5",
+        "ext-mongo" : "*",
+        "ext-mysqli" : "*",
+        "phpunit/phpunit": "4.1.3"
+    },
+    "autoload": {
+        "psr-0" : {
+            "" : "src/"
+        }
+    },
+
+    "autoload-dev": {
+        "psr-0": {
+            "tests\\": "tests/"
+        }
+    },
+
+    "bin": [
+        "cli/kungphu.php"
+    ]
+}

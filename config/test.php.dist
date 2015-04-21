@@ -1,0 +1,21 @@
+<?php
+$mongo = new MongoClient();
+$mongo = $mongo->selectDB('test');
+
+$pdo_mysqli = new PDO(
+    'mysql:dbname=test;host=127.0.0.1;username=root;password=root',
+    'root',
+    'root',
+    [
+        PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES 'UTF8'",
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::MYSQL_ATTR_LOCAL_INFILE => true
+    ]
+);
+$mysqli = new mysqli('127.0.0.1', 'root', 'root', 'test');
+return [
+    'pdo_mysqli' => $pdo_mysqli,
+    'mysqli' => $mysqli,
+    'mongo' => $mongo
+];
