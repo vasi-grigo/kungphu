@@ -21,7 +21,7 @@ class Permutator {
      */
     static function rstr($prefix = '', $more_entropy = false){
         return function() use ($prefix, $more_entropy){
-            return [uniqid($prefix, $more_entropy), true];
+            return [uniqid($prefix, $more_entropy), true, true];
         };
     }
 
@@ -36,7 +36,7 @@ class Permutator {
     static function rnum($min = 0, $max = null, $float = false){
         return function() use ($min, $max, $float){
             $num = mt_rand($min, $max);
-            return [$float ? $num / mt_getrandmax() : $num , true];
+            return [$float ? $num / mt_getrandmax() : $num , true, true];
         };
     }
 
@@ -53,7 +53,7 @@ class Permutator {
             $max = $d1 instanceof \DateTime ? $d1->getTimestamp() : strtotime($d1);
             $d = new \DateTime();
             $d->setTimestamp(mt_rand($min, $max));
-            return [$d, true];
+            return [$d, true, true];
         };
     }
 
@@ -66,7 +66,7 @@ class Permutator {
     static function rvalue(array $values){
         return function() use ($values){
             $r = mt_rand(0, count($values) - 1);
-            return [$values[$r], true];
+            return [$values[$r], true, true];
         };
     }
 
@@ -105,6 +105,7 @@ class Permutator {
             if (empty($carry)){
                 return $item;
             }
+            
             $ret = [];
             foreach ($carry as $c) {
                 foreach ($item as $i) {
@@ -142,7 +143,7 @@ class Permutator {
             $ret = $arr[$i];
             $last = $i == $i_max;
             $i = $i == $i_max ? 0 : $i + 1;
-            return [$ret, $last];
+            return [$ret, $last, false];
         };
     }
 
@@ -178,7 +179,7 @@ class Permutator {
             $_i = true;
 
             $_dt0 = $_dt0 > $_dt1 ? $_dt1 : $_dt0;
-            return [clone $dt0, $dt0 == $dt1];
+            return [clone $dt0, $dt0 == $dt1, false];
         };
     }
 
@@ -356,6 +357,11 @@ SQL;
             $row = [];
             while (true){
                 $ret = call_user_func($g);
+                if ($ret[2]){
+                    $row[] = $ret;
+                    break;
+                }
+                
                 $row[] = $ret[0];
                 if ($ret[1]){
                     break;
