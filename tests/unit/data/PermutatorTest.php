@@ -11,10 +11,12 @@ class PermutatorTest extends \PHPUnit_Framework_TestCase{
     protected function setUp(){
         $this->_file = sys_get_temp_dir() . '/' . uniqid();
         file_put_contents($this->_file, '');
+        Bootstrap::getInstance()->mongo->drop();
         parent::setUp();
     }
 
     protected function tearDown(){
+        Bootstrap::getInstance()->mongo->drop();
         @unlink($this->_file);
         parent::tearDown();
     }
@@ -22,8 +24,70 @@ class PermutatorTest extends \PHPUnit_Framework_TestCase{
     /**
      * @test
      */
+    function rstr(){
+        $out = [];
+        for ($i = 0; $i < 5; $i++){
+            $actual = call_user_func(Permutator::rstr());
+            $this->assertTrue($actual[1]);
+            $out[] = $actual[0];
+            if ($i > 0){
+                $this->assertNotEquals($out[$i-1], $out[$i]);
+            }
+        }
+    }
+    
+    /**
+     * @test
+     */
+    function rnum(){
+        $out = [];
+        for ($i = 0; $i < 5; $i++){
+            $actual = call_user_func(Permutator::rnum(0, 10000));
+            $this->assertTrue($actual[1]);
+            $this->assertTrue($actual[0] >= 0 && $actual[0] <= 10000);
+            $out[] = $actual[0];
+            if ($i > 0){
+                $this->assertNotEquals($out[$i-1], $out[$i]);
+            }
+        }
+    }
+    
+    /**
+     * @test
+     */
+    function rdate(){
+        $d0 = new \DateTime();
+        $d1 = new \DateTime('+1 day');
+        $out = [];
+        for ($i = 0; $i < 5; $i++){
+            $actual = call_user_func(Permutator::rdate($d0, $d1));
+            $this->assertTrue($actual[1]);
+            $this->assertTrue($actual[0] >= $d0 && $actual[0] <= $d1);
+            $out[] = $actual[0]->getTimestamp();
+            if ($i > 0){
+                $this->assertNotEquals($out[$i-1], $out[$i]);
+            }
+        }
+    }
+
+    /**
+     * @test
+     */
+    function rvalue(){
+        $arr = ['foo', 'bar', 'baz', 'bat'];
+        for ($i = 0; $i < 5; $i++){
+            $actual = call_user_func(Permutator::rvalue($arr));
+            $this->assertTrue($actual[1]);
+            $this->assertTrue(in_array($actual[0], $arr));
+        }
+    }
+
+    /**
+     * @test
+     */
     function cycle(){
         $sut = new Permutator();
+        try{ $sut::cycle([]); $this->fail("Expected exception.");}catch (\LogicException $e){}
         $func = $sut->cycle([1, 2]);
         $this->assertEquals([1, false], call_user_func($func));
         $this->assertEquals([2, true], call_user_func($func));
@@ -35,6 +99,9 @@ class PermutatorTest extends \PHPUnit_Framework_TestCase{
      * @test
      */
     function date_cycle(){
+        $sut = new Permutator();
+        try{ $sut::date_cycle(new \DateTime(), new \DateTime(), 'bogus'); $this->fail("Expected exception.");}catch (\LogicException $e){}
+
         //day
         $assert = function($expect, $actual){
             $format = 'Y-m-d H:i';
@@ -65,6 +132,8 @@ class PermutatorTest extends \PHPUnit_Framework_TestCase{
      */
     function export_csv(){
         $sut = new Permutator();
+        try{ $sut::export_csv([], $this->_file); $this->fail("Expected exception.");}catch (\LogicException $e){}
+
         $data = [
             ["\n", [[false]], false],
             [",\n", [[false, false]], false],
@@ -102,6 +171,8 @@ class PermutatorTest extends \PHPUnit_Framework_TestCase{
      */
     function export_json(){
         $sut = new Permutator();
+        try{ $sut::export_json([], $this->_file); $this->fail("Expected exception.");}catch (\LogicException $e){}
+        
         $data = [
             ["[[false]]", [[false]]],
             ["[[false,false]]", [[false, false]]],
@@ -155,8 +226,9 @@ SQL;
             ->method('exec')
             ->with($with)
             ;
-        $cb = $sut::load_mysql($db, $table, $this->_file);
-        $cb($loader, $sut, false);
+        $cb = $sut::load_mysql($db, $table, $this->_file, false);
+        $actual = $cb($loader, 'foo', 'bar', $sut, false);
+        $this->assertEquals(['data' => [['a' => 1],['a' => 2]], 'query' => null], $actual);
         $this->assertEquals("1\n2\n", file_get_contents($this->_file));
     }
     
@@ -179,9 +251,12 @@ SQL;
         
         $cb = $sut::load_mongo(
             ['db' => $name, 'collection' => 'bar'],
-            $this->_file
+            $this->_file,
+            false
         );
-        $cb($loader, $sut, false);
+        $actual = $cb($loader, 'foo', 'bar', $sut);
+        $this->assertEquals([['a' => 1], ['a' => 2]], $actual['data']);
+        $this->assertTrue(count($actual['cmd']) == 2);
         $this->assertEquals('[{"a":1},{"a":2}]', file_get_contents($this->_file));
         $actual = $mongo->bar->find([]);
         $actual = iterator_to_array($actual, false);
@@ -198,18 +273,16 @@ SQL;
      * @test
      */
     function permutate(){
-        try{
-            Permutator::permutate([]);
-            $this->fail('Exception expected.');
-        }catch (\RuntimeException $e){}
+        $this->assertEquals([], Permutator::permutate([]));
+        
         try{
             Permutator::permutate([[]]);
             $this->fail('Exception expected.');
-        }catch (\RuntimeException $e){}
+        }catch (\LogicException $e){}
         try{
             Permutator::permutate([[1], []]);
             $this->fail('Exception expected.');
-        }catch (\RuntimeException $e){}
+        }catch (\LogicException $e){}
         
         $str = uniqid();
         $d = new \DateTime();
@@ -349,7 +422,7 @@ SQL;
      * @depends getPermutations
      * @test
      */
-    function _call_empty_values(){
+    function _call(){
         $sut = new Permutator();
         $sut->a(null);
         $sut->b(0);
@@ -374,5 +447,30 @@ SQL;
             ]],
             $sut->getPermutations()
         );
+
+        try{ $sut->n(1,2); $this->fail("Expected exception.");}catch (\LogicException $e){}
+    }
+
+    /**
+     * @test
+     */
+    function loadClosure(){
+        $sut = new Permutator();
+        try{ $sut->loadClosure(1); $this->fail("Expected exception.");}catch (\LogicException $e){}
+        $sut->loadClosure(function(){ return 'foo'; });
+        $func = $sut->loadClosure();
+        $this->assertEquals('foo', $func());
+    }
+
+    /**
+     * @depends getPermutations
+     * @test
+     */
+    function reset(){
+        $sut = new Permutator();
+        $sut->a(1);
+        $this->assertEquals([['a'=>1]], $sut->getPermutations());
+        $sut->reset();
+        $this->assertEmpty($sut->getPermutations());
     }
 }

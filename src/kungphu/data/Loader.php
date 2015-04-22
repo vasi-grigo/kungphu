@@ -8,9 +8,8 @@ class Loader {
      * @var array
      */
     protected $_map;
-    protected $_optimize;
 
-    function __construct(array $map, $optimize = false){
+    function __construct(array $map){
         if (empty($map)){
             throw new \LogicException('$map can not be empty.');
         }
@@ -34,10 +33,9 @@ class Loader {
         }
 
         $this->_map = $map;
-        $this->_optimize = $optimize;
     }
     
-    function load($set, $optimize = null){
+    function load($set){
         if (empty($set) && $set !== 0){
             throw new \LogicException('No $set given.');
         }
@@ -46,10 +44,12 @@ class Loader {
             throw new \OutOfBoundsException("No binding defined for $set.");
         }
         
-        $optimize = !is_null($optimize) ? $optimize : $this->_optimize;
+        $ret = [];
         /** @var $v Permutator */
-        foreach ($this->_map[$set] as $v) {
-            call_user_func($v->loadClosure(), $this, $v, $optimize);
+        foreach ($this->_map[$set] as $k => $v) {
+            $ret[$k] = call_user_func($v->loadClosure(), $this, $set, $k, $v);
         }
+        
+        return $ret;
     }
 }

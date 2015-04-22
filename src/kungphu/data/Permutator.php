@@ -49,8 +49,8 @@ class Permutator {
      */
     static function rdate($d0, $d1){
         return function() use ($d0, $d1){
-            $min = strtotime($d0);
-            $max = strtotime($d1);
+            $min = $d0 instanceof \DateTime ? $d0->getTimestamp() : strtotime($d0);
+            $max = $d1 instanceof \DateTime ? $d1->getTimestamp() : strtotime($d1);
             $d = new \DateTime();
             $d->setTimestamp(mt_rand($min, $max));
             return [$d, true];
@@ -66,7 +66,7 @@ class Permutator {
     static function rvalue(array $values){
         return function() use ($values){
             $r = mt_rand(0, count($values) - 1);
-            return $values[$r];
+            return [$values[$r], true];
         };
     }
 
@@ -78,7 +78,7 @@ class Permutator {
      *
      * @return array|mixed
      *
-     * @throws \RuntimeException
+     * @throws \LogicException
      */
     static function permutate(array $combos){
         if (empty($combos)){
@@ -86,7 +86,7 @@ class Permutator {
         }
         foreach ($combos as $i => $c) {
             if (empty($c)){
-                throw new \RuntimeException('$combos[' . $i . '] is empty. At least 1 value must be provided');
+                throw new \LogicException('$combos[' . $i . '] is empty. At least 1 value must be provided');
             }
         }
 
@@ -128,11 +128,11 @@ class Permutator {
      * @param array $arr Array to cycle.
      *
      * @return callable
-     * @throws \RuntimeException
+     * @throws \LogicException
      */
     static function cycle(array $arr){
         if (count($arr) <= 0){
-            throw new \RuntimeException('Array has no elements.');
+            throw new \LogicException('Array has no elements.');
         }
 
         return function() use ($arr){
@@ -154,14 +154,14 @@ class Permutator {
      * @param string $step Step to make during iteration.
      *
      * @return callable
-     * @throws \RuntimeException
+     * @throws \LogicException
      */
     static function date_cycle(\DateTime $dt0, \DateTime $dt1, $step){
         try{
             $test = new \DateTime();
             $test->modify($step);
         }catch (\Exception $e){
-            throw new \RuntimeException('Invalid $step given.', 0, $e);
+            throw new \LogicException('Invalid $step given.', 0, $e);
         }
 
         return function() use ($dt0, $dt1, $step){
@@ -188,11 +188,12 @@ class Permutator {
      * @param \PDO| \mysqli $db
      * @param string $table
      * @param string $file
+     * @param bool $delete_file
      * 
      * @return callable
      * @throws \LogicException
      */
-    static function load_mysql($db, $table, $file){
+    static function load_mysql($db, $table, $file, $delete_file = true){
         $valid = [
             $db instanceof \PDO,
             $db instanceof \mysqli
@@ -204,11 +205,9 @@ class Permutator {
             throw new \LogicException("Empty table name provided.");
         }
         
-        return function(Loader $l, Permutator $p, $optimize) use ($db, $table, $file){
-            //if no optimization or file contents are empty, dump the data
-            if (!$optimize || !file_exists($file)){
-                self::export_csv($p->getPermutations(), $file);
-            }
+        return function(Loader $l, $set, $key, Permutator $p) use ($db, $table, $file, $delete_file){
+            $data = $p->getPermutations();
+            self::export_csv($data, $file);
             
             //autoquote
             if (strpos($table, '.') === false){
@@ -223,19 +222,27 @@ class Permutator {
                 OPTIONALLY ENCLOSED BY '"'
                 LINES TERMINATED BY '\n'
 SQL;
+            $ret = [];
             if ($db instanceof \PDO){
-                return $db->exec($sql);
+                $ret['query'] = $db->exec($sql);
             }
             
             if ($db instanceof \mysqli){
-                return $db->query($sql);
+                $ret['query'] = $db->query($sql);
+            }
+
+            if ($delete_file){
+                @unlink($file);
             }
             
-            throw new \RuntimeException("Adapter not implemented.");
+            if (!empty($ret)){
+                $ret['data'] = $data;
+                return $ret;
+            }
         };
     }
     
-    static function load_mongo(array $conf, $file){
+    static function load_mongo(array $conf, $file, $delete_file = true){
         //validate config
         $data = [
             //required
@@ -258,11 +265,9 @@ SQL;
         
         $conf['file'] = $file;
         
-        return function(Loader $l, Permutator $p, $optimize) use ($conf, $file){
-            //if no optimization or file contents are empty, dump the data
-            if (!$optimize || !file_exists($file)){
-                self::export_json($p->getPermutations(), $file);
-            }
+        return function(Loader $l, $set, $key, Permutator $p) use ($conf, $file, $delete_file){
+            $data = $p->getPermutations();
+            self::export_json($data, $file);
             
             $cmd = "mongoimport \\
                 --db $conf[db] \\
@@ -274,13 +279,18 @@ SQL;
             ";
             
             exec($cmd, $output, $return);
-            return [$output, $return];
+            return [
+                'data' => $data,
+                'cmd' =>[
+                    $output, $return
+                ]
+            ];
         };
     }
     
     static function export_csv(array $data, $file, $headerline = false){
         if (empty($data)){
-            throw new \RuntimeException("No data given.");
+            throw new \LogicException("No data given.");
         }
         $fp = fopen($file, 'w');
         
@@ -290,13 +300,13 @@ SQL;
         
         foreach ($data as $k => $fields) {
             if (!is_array($fields)){
-                throw new \RuntimeException("\$data[$k] is not an array.");
+                throw new \LogicException("\$data[$k] is not an array.");
             }
             fputcsv($fp, $fields);
         }
         $bool = fclose($fp);
         if ($bool === false){
-            throw new \RuntimeException("Failed to write to file '$file'.");
+            throw new \LogicException("Failed to write to file '$file'.");
         }
         
         return true;
@@ -304,17 +314,17 @@ SQL;
 
     static function export_json(array $data, $file){
         if (empty($data)){
-            throw new \RuntimeException("No data given.");
+            throw new \LogicException("No data given.");
         }
 
         $data = json_encode($data);
         if ($data === false){
-            throw new \RuntimeException("Failed to json_encode($data).");
+            throw new \LogicException("Failed to json_encode($data).");
         }
 
         $bool = file_put_contents($file, $data);
         if ($bool === false){
-            throw new \RuntimeException("Failed to write to file '$file'.");
+            throw new \LogicException("Failed to write to file '$file'.");
         }
         
         return true;
@@ -322,7 +332,7 @@ SQL;
 
     function __call($name, $value){
         if (count($value) > 1){
-            throw new \RuntimeException("Only a single value is expected.");
+            throw new \LogicException("Only a single value is expected.");
         }
 
         $value = array_pop($value);
@@ -365,14 +375,14 @@ SQL;
      * 
      * @param \Closure $callback
      * @return callable
-     * @throws \RuntimeException
+     * @throws \LogicException
      */
     function loadClosure($callback = null){
         if (empty($callback)){
             return $this->_loadClosure;
         }
         if (!$callback instanceof \Closure){
-            throw new \RuntimeException('$func must be an instance of \Closure');
+            throw new \LogicException('$func must be an instance of \Closure');
         }
         
         $this->_loadClosure = $callback;

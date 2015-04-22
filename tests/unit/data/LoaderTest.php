@@ -30,33 +30,35 @@ class LoaderTest extends \PHPUnit_Framework_TestCase{
      * @test
      */
     function load(){
-        $bool = true;
-
-        //unkeyed map
-        $permutator = $this->getMock('kungphu\data\Permutator');
-        $permutator->expects($this->exactly(2))
-            ->method('loadClosure')
-            ->with()
-            ->will($this->returnValue(function(Loader $l, Permutator $p, $bool) use (&$assert){ $assert = true; }))
-        ;
-        $sut = new Loader([[$permutator]]);
-        $assert = false;
-        $sut->load(0, $bool);
-        $this->assertTrue($assert);
+        $foo = uniqid();
+        $bar = uniqid();
         
-        //keyed map
-        $permutator = $this->getMock('kungphu\data\Permutator');
-        $assert = false;
-        $permutator->expects($this->exactly(2))
+        $p0 = $this->getMock('kungphu\data\Permutator');
+        $p0->expects($this->exactly(2))
             ->method('loadClosure')
             ->with()
-            ->will($this->returnValue(function(Loader $l, Permutator $p, $bool) use (&$assert){ $assert = true; }))
+            ->will($this->returnValue(function() use ($foo) { return [$foo, func_get_args()]; } ));
         ;
-        $sut = new Loader(['a' => [$permutator]]);
-        $sut->load('a', $bool);
-        $this->assertTrue($assert);
+        $p1 = $this->getMock('kungphu\data\Permutator');
+        $p1->expects($this->exactly(2))
+            ->method('loadClosure')
+            ->with()
+            ->will($this->returnValue(function() use ($bar) { return [$bar, func_get_args()]; } ));
+        ;
+        
+        $sut = new Loader(['a' => [$p0, $p1]]);
+        
+        try{ $sut->load('foo'); $this->fail("Expected exception."); }catch (\OutOfBoundsException $e){}
+        try{ $sut->load(null); $this->fail("Expected exception."); }catch (\LogicException $e){}
+        try{ $sut->load(false); $this->fail("Expected exception."); }catch (\LogicException $e){}
 
-        try{ $sut->load('b'); $this->fail("Expected exception."); }catch (\OutOfBoundsException $e){}
-        try{ $sut->load(''); $this->fail("Expected exception.");}catch (\LogicException $e){}
+        $actual = $sut->load('a');
+        $this->assertEquals(
+            [
+                [$foo, [$sut, 'a', 0, $p0]],
+                [$bar, [$sut, 'a', 1, $p1]],
+            ],
+            $actual
+        );
     }
 } 
