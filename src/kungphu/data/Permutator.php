@@ -206,7 +206,7 @@ class Permutator {
         
         return function(Loader $l, Permutator $p, $optimize) use ($db, $table, $file){
             //if no optimization or file contents are empty, dump the data
-            if (!$optimize || empty(file_get_contents($file))){
+            if (!$optimize || !file_exists($file)){
                 self::export_csv($p->getPermutations(), $file);
             }
             
@@ -243,8 +243,7 @@ SQL;
             ['collection', ''],
             //optional
             ['host', 'localhost'],
-            ['port', '27017'],
-            ['type', 'csv'],
+            ['port', '27017']
         ];
         foreach ($data as $v) {
             if (empty($v[1]) && empty($conf[$v[0]])){
@@ -259,33 +258,19 @@ SQL;
         
         $conf['file'] = $file;
         
-        if (!in_array($conf['type'], ['csv', 'json'])){
-            throw new \LogicException("Unrecognized file type '$conf[type]'.");
-        }
-        
         return function(Loader $l, Permutator $p, $optimize) use ($conf, $file){
             //if no optimization or file contents are empty, dump the data
-            if (!$optimize || empty(file_get_contents($file))){
-                switch ($conf['type']){
-                    case 'csv':
-                        self::export_csv($p->getPermutations(), $file, true);
-                        break;
-                    case 'json':
-                        self::export_json($p->getPermutations(), $file);
-                        break;
-                }
+            if (!$optimize || !file_exists($file)){
+                self::export_json($p->getPermutations(), $file);
             }
             
-            $opts = $conf['type'] == 'csv' ? '--headerline' : '';
-            $opts = $conf['type'] == 'json' ? '--jsonArray' : $opts;
-
             $cmd = "mongoimport \\
                 --db $conf[db] \\
                 --collection $conf[collection] \\
                 --file $conf[file] \\
                 --host $conf[host] \\
                 --port $conf[port] \\
-                --type $conf[type] $opts
+                --type json --jsonArray
             ";
             
             exec($cmd, $output, $return);
@@ -337,14 +322,10 @@ SQL;
 
     function __call($name, $value){
         if (count($value) > 1){
-            throw new \RuntimeException("Value provided must be a closure or int, string, float or array.");
+            throw new \RuntimeException("Only a single value is expected.");
         }
 
         $value = array_pop($value);
-        if (empty($value)){
-            throw new \RuntimeException("Function '$name' not meant to be called without arguments.");
-        }
-
         $value = $value instanceof \Closure ? $value :function() use ($value) { return [$value, true]; };
         $this->_generators[$name] = $value;
         return $this;

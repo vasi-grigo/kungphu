@@ -10,14 +10,14 @@ class Loader {
     protected $_map;
     protected $_optimize;
 
-    function __construct(array $map, $optimize = true){
+    function __construct(array $map, $optimize = false){
         if (empty($map)){
             throw new \LogicException('$map can not be empty.');
         }
 
         //validate $map
         foreach ($map as $k0 => $m0) {
-            if (is_array($m0)){
+            if (is_array($m0) && !empty($m0)){
                 foreach ($m0 as $k1 => $m1) {
                     if ($m1 instanceof Permutator){
                         if ($m1->loadClosure() instanceof \Closure){
@@ -30,7 +30,7 @@ class Loader {
                 continue;
             }
             
-            throw new \LogicException("\$map[$k0] is not an array of Permutator.");
+            throw new \LogicException("\$map[$k0] is not an array of Permutator or is empty.");
         }
 
         $this->_map = $map;

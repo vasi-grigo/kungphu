@@ -11,13 +11,13 @@ class LoaderTest extends \PHPUnit_Framework_TestCase{
      */
     function construct(){
         $permutator = $this->getMock('kungphu\data\Permutator');
-        try{ new Loader([]); }catch (\LogicException $e){}
-        try{ new Loader(['foo']); }catch (\LogicException $e){}
-        try{ new Loader(['foo' => []]); }catch (\LogicException $e){}
-        try{ new Loader(['foo' => $permutator, 'trash']); }catch (\LogicException $e){}
-        try{ new Loader(['foo' => [$permutator, 'trash']]); }catch (\LogicException $e){}
-        try{ new Loader(['foo' => [$permutator], [$permutator, 'trash']]); }catch (\LogicException $e){}
-        try{ new Loader([[$permutator]]); }catch (\LogicException $e){}
+        try{ new Loader([]); $this->fail("Expected exception.");}catch (\LogicException $e){}
+        try{ new Loader(['foo']); $this->fail("Expected exception.");}catch (\LogicException $e){}
+        try{ new Loader(['foo' => []]); $this->fail("Expected exception.");}catch (\LogicException $e){}
+        try{ new Loader(['foo' => $permutator, 'trash']); $this->fail("Expected exception.");}catch (\LogicException $e){}
+        try{ new Loader(['foo' => [$permutator, 'trash']]); $this->fail("Expected exception.");}catch (\LogicException $e){}
+        try{ new Loader(['foo' => [$permutator], [$permutator, 'trash']]); $this->fail("Expected exception.");}catch (\LogicException $e){}
+        try{ new Loader([[$permutator]]); $this->fail("Expected exception."); }catch (\LogicException $e){}
         $permutator->expects($this->exactly(2))
             ->method('loadClosure')
             ->will($this->returnValue(function(){return true; } ))
@@ -56,7 +56,7 @@ class LoaderTest extends \PHPUnit_Framework_TestCase{
         $sut->load('a', $bool);
         $this->assertTrue($assert);
 
-        try{ $sut->load('b'); }catch (\OutOfBoundsException $e){}
-        try{ $sut->load(''); }catch (\LogicException $e){}
+        try{ $sut->load('b'); $this->fail("Expected exception."); }catch (\OutOfBoundsException $e){}
+        try{ $sut->load(''); $this->fail("Expected exception.");}catch (\LogicException $e){}
     }
 } 

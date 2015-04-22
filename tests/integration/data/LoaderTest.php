@@ -83,35 +83,18 @@ SQL
         $st = $pdo->query('SELECT * from `procedure`');
         $this->assertEquals([['b' => 'b0'], ['b' => 'b1']], $st->fetchAll());
         
-        //tweak files directly (i.e. check optimize is considered)
-        file_put_contents($this->_file0, "a2\na3\n");
-        file_put_contents($this->_file1, "b2\nb3\n");
+        //force no optimization 
         $loader->load(0);
 
         //db after
         $st = $pdo->query('SELECT * from `trigger`');
         $this->assertEquals(
-            [['a' => 'a0'], ['a' => 'a1'], ['a' => 'a2'], ['a' => 'a3']],
+            [['a' => 'a0'], ['a' => 'a1'], ['a' => 'a0'], ['a' => 'a1']],
             $st->fetchAll()
         );
         $st = $pdo->query('SELECT * from `procedure`');
         $this->assertEquals(
-            [['b' => 'b0'], ['b' => 'b1'], ['b' => 'b2'], ['b' => 'b3']],
-            $st->fetchAll()
-        );
-        
-        //force no optimization 
-        $loader->load(0, false);
-
-        //db after
-        $st = $pdo->query('SELECT * from `trigger`');
-        $this->assertEquals(
-            [['a' => 'a0'], ['a' => 'a1'], ['a' => 'a2'], ['a' => 'a3'], ['a' => 'a0'], ['a' => 'a1']],
-            $st->fetchAll()
-        );
-        $st = $pdo->query('SELECT * from `procedure`');
-        $this->assertEquals(
-            [['b' => 'b0'], ['b' => 'b1'], ['b' => 'b2'], ['b' => 'b3'], ['b' => 'b0'], ['b' => 'b1']],
+            [['b' => 'b0'], ['b' => 'b1'], ['b' => 'b0'], ['b' => 'b1']],
             $st->fetchAll()
         );
 
@@ -129,8 +112,8 @@ SQL
         $mongo = Bootstrap::getInstance()->mongo;
         $name = $mongo->execute('db');
         $name = $name['retval']['_name'];
-        $conf0 = ['db' => $name, 'collection' => $this->_col0, 'type' => 'csv'];
-        $conf1 = ['db' => $name, 'collection' => $this->_col1, 'type' => 'json'];
+        $conf0 = ['db' => $name, 'collection' => $this->_col0];
+        $conf1 = ['db' => $name, 'collection' => $this->_col1];
         $filter = function(&$data){
             $data = iterator_to_array($data, false);
             foreach ($data as &$d) {
@@ -164,35 +147,37 @@ SQL
         $actual = $mongo->selectCollection($conf1['collection'])->find([]);
         $this->assertEquals([['b' => 'b0'],['b'=>'b1']], $filter($actual));
         //files after
-        $this->assertEquals("a\na0\na1\n", file_get_contents($this->_file0));
+        $this->assertEquals('[{"a":"a0"},{"a":"a1"}]', file_get_contents($this->_file0));
         $this->assertEquals('[{"b":"b0"},{"b":"b1"}]', file_get_contents($this->_file1));
         
-        //tweak the files
-        file_put_contents($this->_file0, "a\na2\na3\n");
-        file_put_contents($this->_file1, json_encode([['b'=>'b2'], ['b'=>'b3']]));
-
-        //load observering optimize
         $loader->load(0);
 
         //db after
         $actual = $mongo->selectCollection($conf0['collection'])->find([]);
-        $this->assertEquals([['a' => 'a0'],['a'=>'a1'],['a' => 'a2'],['a'=>'a3']], $filter($actual));
+        $this->assertEquals([['a' => 'a0'],['a'=>'a1'],['a' => 'a0'],['a'=>'a1']], $filter($actual));
         $actual = $mongo->selectCollection($conf1['collection'])->find([]);
-        $this->assertEquals([['b' => 'b0'],['b'=>'b1'],['b' => 'b2'],['b'=>'b3']], $filter($actual));
+        $this->assertEquals([['b' => 'b0'],['b'=>'b1'],['b' => 'b0'],['b'=>'b1']], $filter($actual));
         //files after
-        $this->assertEquals("a\na2\na3\n", file_get_contents($this->_file0));
-        $this->assertEquals('[{"b":"b2"},{"b":"b3"}]', file_get_contents($this->_file1));
-
-        //force no optimize
-        $loader->load(0, false);
-
-        //db after
-        $actual = $mongo->selectCollection($conf0['collection'])->find([]);
-        $this->assertEquals([['a' => 'a0'],['a'=>'a1'],['a' => 'a2'],['a'=>'a3'],['a' => 'a0'],['a'=>'a1']], $filter($actual));
-        $actual = $mongo->selectCollection($conf1['collection'])->find([]);
-        $this->assertEquals([['b' => 'b0'],['b'=>'b1'],['b' => 'b2'],['b'=>'b3'],['b' => 'b0'],['b'=>'b1']], $filter($actual));
-        //files after
-        $this->assertEquals("a\na0\na1\n", file_get_contents($this->_file0));
+        $this->assertEquals('[{"a":"a0"},{"a":"a1"}]', file_get_contents($this->_file0));
         $this->assertEquals('[{"b":"b0"},{"b":"b1"}]', file_get_contents($this->_file1));
+
+        //test nested data
+        $obj = new \stdClass();
+        $obj->foo = 'foo';
+        //@todo add associative array
+        $p0 = new Permutator();
+        $p0->foo($obj);
+        $p0->loadClosure($p0::load_mongo($conf0, $this->_file0));
+        
+        $loader = new Loader([[$p0]]);
+        $loader->load(0, false);
+        
+        $actual = $mongo->selectCollection($conf0['collection'])->find(['foo' => ['$exists' => true]]);
+        $actual = $filter($actual);
+        $this->assertEquals(
+            [['foo' => ['foo' => 'foo']]],
+            $actual
+        );
+        $this->assertEquals('[{"foo":{"foo":"foo"}}]', file_get_contents($this->_file0));
     }
 } 

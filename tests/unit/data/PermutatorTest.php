@@ -133,8 +133,8 @@ class PermutatorTest extends \PHPUnit_Framework_TestCase{
      */
     function load_mysql(){
         $sut = new Permutator();
-        try{$sut::load_mysql($this->getMock('stdClass'), '', $this->_file); }catch (\LogicException $e){}
-        try{$sut::load_mysql($this->getMock('tests\MockPDO'), '', $this->_file); }catch (\LogicException $e){}
+        try{$sut::load_mysql($this->getMock('stdClass'), '', $this->_file); $this->fail("Expected exception.");}catch (\LogicException $e){}
+        try{$sut::load_mysql($this->getMock('tests\MockPDO'), '', $this->_file); $this->fail("Expected exception."); }catch (\LogicException $e){}
 
         $table = 'trigger';
         $with = <<<SQL
@@ -169,9 +169,9 @@ SQL;
         $mongo = Bootstrap::getInstance()->mongo;
         $name = $mongo->execute('db');
         $name = $name['retval']['_name'];
-        try{ $sut::load_mongo(['db' => '', 'collection' => ''], null); } catch (\LogicException $e){}
-        try{ $sut::load_mongo(['db' => 'foo', 'collection' => ''], null); } catch (\LogicException $e){}
-        try{ $sut::load_mongo(['db' => 'foo', 'collection' => 'bar'], null); } catch (\LogicException $e){}
+        try{ $sut::load_mongo(['db' => '', 'collection' => ''], null); $this->fail("Expected exception."); } catch (\LogicException $e){}
+        try{ $sut::load_mongo(['db' => 'foo', 'collection' => ''], null); $this->fail("Expected exception."); } catch (\LogicException $e){}
+        try{ $sut::load_mongo(['db' => 'foo', 'collection' => 'bar'], null); $this->fail("Expected exception."); } catch (\LogicException $e){}
 
         $loader = $this->getMock('kungphu\data\Loader', [], [], '', false);
         $sut->a($sut::cycle([1,2]));
@@ -182,7 +182,7 @@ SQL;
             $this->_file
         );
         $cb($loader, $sut, false);
-        $this->assertEquals("a\n1\n2\n", file_get_contents($this->_file));
+        $this->assertEquals('[{"a":1},{"a":2}]', file_get_contents($this->_file));
         $actual = $mongo->bar->find([]);
         $actual = iterator_to_array($actual, false);
         foreach ($actual as &$a) {
@@ -343,5 +343,36 @@ SQL;
             ['a' => new \DateTime('today 03:00:00')],
         ];
         $this->assertEquals($expected, $actual);
+    }
+
+    /**
+     * @depends getPermutations
+     * @test
+     */
+    function _call_empty_values(){
+        $sut = new Permutator();
+        $sut->a(null);
+        $sut->b(0);
+        $sut->c(false);
+        $sut->d(['a']);
+        $sut->e([]);
+        $sut->f('string');
+        $sut->g(0.1);
+        $obj = new \stdClass();
+        $obj->foo = 'foo';
+        $sut->h($obj);
+        $this->assertEquals(
+            [[
+                'a' => null,
+                'b' => 0,
+                'c' => false,
+                'd' => ['a'],
+                'e' => [],
+                'f' => 'string',
+                'g' => 0.1,
+                'h' => $obj
+            ]],
+            $sut->getPermutations()
+        );
     }
 }
