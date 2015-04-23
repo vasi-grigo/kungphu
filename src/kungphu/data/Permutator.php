@@ -36,7 +36,7 @@ class Permutator {
     static function rnum($min = 0, $max = null, $float = false){
         return function() use ($min, $max, $float){
             $num = mt_rand($min, $max);
-            return [$float ? $num / mt_getrandmax() : $num , true, true];
+            return [$float ? $num / mt_getrandmax() : $num, true, true];
         };
     }
 
@@ -103,19 +103,22 @@ class Permutator {
 
         $reduce = function($carry, $item){
             if (empty($carry)){
-                return $item;
+                return $item instanceof \Closure ? $item() : $item;
             }
             
             $ret = [];
             foreach ($carry as $c) {
                 foreach ($item as $i) {
+                    //handle array
                     if (is_array($c)){
                         $n = $c;
                         $n[] = $i;
                         $ret[] = $n;
-                    }else{
-                        $ret[] = [$c, $i];
+                        continue;
                     }
+                    
+                    //handle closure
+                    $ret[] = [$c, $i];
                 }
             }
             return $ret;
@@ -143,7 +146,7 @@ class Permutator {
             $ret = $arr[$i];
             $last = $i == $i_max;
             $i = $i == $i_max ? 0 : $i + 1;
-            return [$ret, $last, false];
+            return [$ret, false, $last];
         };
     }
 
@@ -179,7 +182,7 @@ class Permutator {
             $_i = true;
 
             $_dt0 = $_dt0 > $_dt1 ? $_dt1 : $_dt0;
-            return [clone $dt0, $dt0 == $dt1, false];
+            return [clone $dt0, false, $dt0 == $dt1];
         };
     }
 
@@ -331,14 +334,25 @@ SQL;
         return true;
     }
 
-    function __call($name, $value){
-        if (count($value) > 1){
-            throw new \LogicException("Only a single value is expected.");
+    /**
+     * Gets/sets a generator for a particular field for permutation.
+     * 
+     * @param $name
+     * @param $arguments
+     * @return $this
+     * 
+     * @throws \LogicException
+     */
+    function __call($name, $arguments){
+        $cnt = count($arguments);
+        
+        if ($cnt != 0 || $cnt != 2){
+            throw new \LogicException("0 or 2 arguments are expected.");
         }
-
-        $value = array_pop($value);
-        $value = $value instanceof \Closure ? $value :function() use ($value) { return [$value, true]; };
-        $this->_generators[$name] = $value;
+        
+        $value = array_pop($arguments);
+        $finite = array_pop($arguments);
+        $this->_generators[$name] = [$finite, $value];
         return $this;
     }
 
@@ -346,27 +360,42 @@ SQL;
      * Returns the permutations in accordance with fields set.
      *
      * @return array|mixed
+     * @throws \RuntimeException
      */
     function getPermutations(){
         if (empty($this->_generators)){
             return [];
         }
-
+        
         $combos = [];
         foreach ($this->_generators as $name => $g) {
             $row = [];
+            
+            list($finite, $func) = $g;
+            if (!$finite){
+                $combos[$name] = $func;
+                continue;
+            }
+
             while (true){
-                $ret = call_user_func($g);
-                if ($ret[2]){
-                    $row[] = $ret;
+                $ret = call_user_func($g, $name);
+                if (count($ret) != 2){
+                    throw new \RuntimeException("$name");
+                }
+                
+                //$is_callback flag
+                if ($ret[1]){
+                    $row = $g;
                     break;
                 }
                 
+                //$values_exhausted
                 $row[] = $ret[0];
-                if ($ret[1]){
+                if ($ret[2]){
                     break;
                 }
             }
+            
             $combos[$name] = $row;
         }
 

@@ -89,10 +89,10 @@ class PermutatorTest extends \PHPUnit_Framework_TestCase{
         $sut = new Permutator();
         try{ $sut::cycle([]); $this->fail("Expected exception.");}catch (\LogicException $e){}
         $func = $sut->cycle([1, 2]);
-        $this->assertEquals([1, false], call_user_func($func));
-        $this->assertEquals([2, true], call_user_func($func));
-        $this->assertEquals([1, false], call_user_func($func));
-        $this->assertEquals([2, true], call_user_func($func));
+        $this->assertEquals([1, false, false], call_user_func($func));
+        $this->assertEquals([2, false, true], call_user_func($func));
+        $this->assertEquals([1, false, false], call_user_func($func));
+        $this->assertEquals([2, false, true], call_user_func($func));
     }
 
     /**
@@ -110,9 +110,9 @@ class PermutatorTest extends \PHPUnit_Framework_TestCase{
         };
         $sut = new Permutator();
         $func = $sut->date_cycle(new \DateTime('-1 days'), new \DateTime('+1 days'), '+1 day');
-        $assert([new \DateTime('-1 days'), false], call_user_func($func));
-        $assert([new \DateTime(), false], call_user_func($func));
-        $assert([new \DateTime('+1 days'), true], call_user_func($func));
+        $assert([new \DateTime('-1 days'), false, false], call_user_func($func));
+        $assert([new \DateTime(), false, false], call_user_func($func));
+        $assert([new \DateTime('+1 days'), false, true], call_user_func($func));
 
         //hour
         $sut = new Permutator();
@@ -121,10 +121,10 @@ class PermutatorTest extends \PHPUnit_Framework_TestCase{
         $t1 = new \DateTime('today');
         $t1->setTime(3, 0, 0);
         $func = $sut->date_cycle($t0, $t1, '+1 hour');
-        $assert([new \DateTime('today 00:00:00'), false], call_user_func($func));
-        $assert([new \DateTime('today 01:00:00'), false], call_user_func($func));
-        $assert([new \DateTime('today 02:00:00'), false], call_user_func($func));
-        $assert([new \DateTime('today 03:00:00'), true], call_user_func($func));
+        $assert([new \DateTime('today 00:00:00'), false, false], call_user_func($func));
+        $assert([new \DateTime('today 01:00:00'), false, false], call_user_func($func));
+        $assert([new \DateTime('today 02:00:00'), false, false], call_user_func($func));
+        $assert([new \DateTime('today 03:00:00'), false, true], call_user_func($func));
     }
 
     /**
@@ -347,9 +347,33 @@ SQL;
     }
 
     /**
+     * @test
+     */
+    function _call(){
+        $sut = new Permutator();
+        try{ $sut->n(1,2); $this->fail("Expected exception.");}catch (\LogicException $e){}
+        try{ $sut->a(function(){ return 'bs'; }); $this->fail("Expected exception.");}catch (\LogicException $e){}
+        try{ $sut->a(function(){ return []; }); $this->fail("Expected exception.");}catch (\LogicException $e){}
+        try{ $sut->a(function(){ return [null]; }); $this->fail("Expected exception.");}catch (\LogicException $e){}
+        try{ $sut->a(function(){ return [null, null]; }); $this->fail("Expected exception.");}catch (\LogicException $e){}
+        try{ $sut->a(function(){ return [null, null, null]; }); $this->fail("Expected exception.");}catch (\LogicException $e){}
+        try{ $sut->a(function(){ return ['a', null, null]; }); $this->fail("Expected exception.");}catch (\LogicException $e){}
+        try{ $sut->a(function(){ return ['a', false, null]; }); $this->fail("Expected exception.");}catch (\LogicException $e){}
+        $sut->a(function($name){
+            $this->assertEquals('a', $name);
+            return ['a', false, false];
+        });
+        $sut->b(function($name){
+            $this->assertEquals('b', $name);
+            return ['a', true, true];
+        });
+    }
+
+    /**
      * @depends permutate
      * @depends cycle
      * @depends date_cycle
+     * @depends _call
      * @test
      */
     function getPermutations(){
@@ -416,39 +440,32 @@ SQL;
             ['a' => new \DateTime('today 03:00:00')],
         ];
         $this->assertEquals($expected, $actual);
-    }
-
-    /**
-     * @depends getPermutations
-     * @test
-     */
-    function _call(){
-        $sut = new Permutator();
-        $sut->a(null);
-        $sut->b(0);
-        $sut->c(false);
-        $sut->d(['a']);
-        $sut->e([]);
-        $sut->f('string');
-        $sut->g(0.1);
+        
+        //permutate constants
         $obj = new \stdClass();
         $obj->foo = 'foo';
-        $sut->h($obj);
+        $sut = new Permutator();
+        $sut->a(false)
+            ->b(true)
+            ->c(null)
+            ->d(1)
+            ->e(1.1)
+            ->f(-1.1)
+            ->g('string')
+            ->h([])
+            ->i(['a' => []])
+            ->j(['a' => ['a' => 1]])
+            ->k($obj)
+            ;
+        $actual = $sut->getPermutations();
         $this->assertEquals(
-            [[
-                'a' => null,
-                'b' => 0,
-                'c' => false,
-                'd' => ['a'],
-                'e' => [],
-                'f' => 'string',
-                'g' => 0.1,
-                'h' => $obj
-            ]],
-            $sut->getPermutations()
+            [
+                'a' => false, 'b'=>true, 'c'=>null, 'd'=>1, 'e' => 1.1, 
+                'f' => -1.1, 'g' => 'string', 'h' => [], 'i' => ['a' => []],
+                'j' => ['a' => ['a' => 1]], 'k' => $obj
+            ],
+            $actual
         );
-
-        try{ $sut->n(1,2); $this->fail("Expected exception.");}catch (\LogicException $e){}
     }
 
     /**
