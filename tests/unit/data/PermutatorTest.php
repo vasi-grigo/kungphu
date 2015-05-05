@@ -273,9 +273,62 @@ SQL;
      * @test
      */
     function permutate(){
+        $perms = [];
+        $combos = [
+            'a' => [1,2],
+            'b' => ['b0' => ['b00', 'b01'], 'b1' => ['b10', 'b11']]
+        ];
+        $cnt = 0;
+        foreach ($combos['a'] as $v0){
+            foreach ($combos['b']['b0'] as $v1) {
+                foreach ($combos['b']['b1'] as $v2){
+                    $perms[] = ['a' => $v0, 'b' => ['b0' => $v1, 'b1' => $v2]];
+                    $cnt++;
+                }
+            }
+        }
+
+        $a = function ($data, &$all = [], $group = [], $val = null, $i = 0) use (&$a){
+            if (isset($val)){
+                array_push($group, $val);
+            }
+
+            if ($i >= count($data)){
+                array_push($all, $group);
+            }else{
+                foreach ($data[$i] as $v){
+                    $a($data, $all, $group, $v, $i + 1);
+                }
+            }
+            return $all;
+        };
+        
+        $a = function($data, &$combos = [[]], $key = []) use (&$a){
+            if (!is_array($data)){
+                $cnt = count($key);
+                
+                //wind the array and set the value
+                $arr = &$combos;
+                for ($i = $cnt - 1; $i > 0; $i--){
+                    $arr = &$arr[$key[$i]];
+                }
+                $arr[$key[$i]] = $data;
+                return;
+            }
+            
+            foreach ($data as $k => $v){
+                $k2 = $key;
+                $k2[] = $k;
+                $a($v, $combos, $k2);
+            }
+            return $combos;
+        };
+        
+        $foo = $a($combos);
+        
         $this->assertEquals([], Permutator::permutate([]));
         
-        try{
+        try{    
             Permutator::permutate([[]]);
             $this->fail('Exception expected.');
         }catch (\LogicException $e){}
