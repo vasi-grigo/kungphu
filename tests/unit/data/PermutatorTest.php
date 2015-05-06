@@ -83,6 +83,37 @@ class PermutatorTest extends \PHPUnit_Framework_TestCase{
     }
 
     /**
+     * @depends permutate
+     * @test
+     */
+    function main(){
+        $arr = [1,2,3];
+        $p = new Permutator();
+        $p->a($p::rnum(0, 10));
+        $p->b($p::rstr(0, 10));
+        $p->c($p::rvalue(range(0,10)));
+        $p->d(function(){ return mt_rand(0, 100); });
+        $p->e($p::cycle($arr)); //get the thing cycling
+
+        $actual = $p->getPermutations();
+
+        $data = [
+            ['a'],
+            ['b'],
+            ['c'],
+            ['d'],
+            ['e'],
+        ];
+
+        foreach ($data as $d){
+            list($prop) = $d;
+            //assert that no random value happens count times
+            $values = array_column($actual, $prop);
+            $this->assertTrue(!in_array(count($arr), array_count_values($values)));
+        }
+    }
+
+    /**
      * @test
      */
     function cycle(){
@@ -276,7 +307,7 @@ SQL;
         $perms = [];
         $combos = [
             'a' => [1,2],
-            'b' => ['b0' => ['b00', 'b01'], 'b1' => ['b10', 'b11']]
+            'b' => ['b0' => ['b00', 'b01', 'b02'], 'b1' => ['b10', 'b11']]
         ];
         $cnt = 0;
         foreach ($combos['a'] as $v0){
@@ -303,29 +334,43 @@ SQL;
             return $all;
         };
         
-        $a = function($data, &$combos = [[]], $key = []) use (&$a){
-            if (!is_array($data)){
-                $cnt = count($key);
-                
-                //wind the array and set the value
-                $arr = &$combos;
-                for ($i = $cnt - 1; $i > 0; $i--){
-                    $arr = &$arr[$key[$i]];
+        $b = function($val, $key = []) use (&$b){
+            if (!is_array($val)){
+                array_pop($key); //trash last key
+                $chain = [];
+                $prop = &$chain;
+                foreach ($key as $k){
+                    if (!isset($prop[$k])){
+                        $prop[$k] = [];
+                    }
+                    $prop = &$prop[$k];
                 }
-                $arr[$key[$i]] = $data;
-                return;
+                $prop = $val;
+                return $chain;
             }
             
-            foreach ($data as $k => $v){
+            $chain = [];
+            foreach ($val as $k => $v){
                 $k2 = $key;
                 $k2[] = $k;
-                $a($v, $combos, $k2);
+                $chain[] = $b($v, $k2);
             }
-            return $combos;
+            
+            return $chain;
+        };
+        
+        $a = function(array $data) use ($b){
+            $ret = [];
+            
+            foreach ($data as $k => $d){
+                $ret = $b($d, [$k]);
+                if ($ret){
+                    
+                }
+            }
         };
         
         $foo = $a($combos);
-        
         $this->assertEquals([], Permutator::permutate([]));
         
         try{    
@@ -339,6 +384,16 @@ SQL;
         
         $str = uniqid();
         $d = new \DateTime();
+        $foo = function (){ return 'foo'; };
+        $arr = [
+            'a' => 1, 'b' => 1.5, 'c' => $str,
+            'd' => false, 'e' => null, 'f' => $d, 'g' => $foo,
+            'h' => [1,2,3]
+        ];
+        $arr['nested_array'] = $arr;
+        $arr['nested_object'] = (object) $arr;
+        $obj = (object) $arr;
+        
         $data = [
             //single value invocations
             [ [[1]], [[1]] ],
@@ -346,6 +401,7 @@ SQL;
             [ [[$str]], [[$str]] ],
             [ [[false]], [[false]] ],
             [ [[true]], [[true]] ],
+            [ [[null]], [[null]] ],
             
             [ [[1, 1]], [[1], [1]] ],
             [ [[1, 1], [1, 2]], [[1], [1,2]] ],
@@ -423,13 +479,21 @@ SQL;
     }
 
     /**
-     * @depends permutate
-     * @depends cycle
-     * @depends date_cycle
-     * @depends _call
      * @test
      */
     function getPermutations(){
+        $f = function ($items, &$perms) use (&$f){
+            foreach ($items as $i) {
+                $f($i, $perms);
+            }
+        };
+
+        $perms = [[]];
+        $a = $f(
+            [[1,2], ['b' => ['b00', 'b01']]],
+            $perms
+        );
+        
         $sut = new Permutator();
         $this->assertEquals([], $sut->getPermutations());
         

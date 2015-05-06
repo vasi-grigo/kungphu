@@ -84,6 +84,7 @@ class Permutator {
         if (empty($combos)){
             return [];
         }
+        
         foreach ($combos as $i => $c) {
             if (empty($c)){
                 throw new \LogicException('$combos[' . $i . '] is empty. At least 1 value must be provided');
