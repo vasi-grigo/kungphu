@@ -307,70 +307,77 @@ SQL;
         $perms = [];
         $combos = [
             'a' => [1,2],
-            'b' => ['b0' => ['b00', 'b01', 'b02'], 'b1' => ['b10', 'b11']]
+            'b' => ['b0' => ['b00', 'b01'], 'b1' => ['b10', 'b11']],
+            'c' => ['c0', 'c1']
         ];
-        $cnt = 0;
-        foreach ($combos['a'] as $v0){
-            foreach ($combos['b']['b0'] as $v1) {
-                foreach ($combos['b']['b1'] as $v2){
-                    $perms[] = ['a' => $v0, 'b' => ['b0' => $v1, 'b1' => $v2]];
-                    $cnt++;
-                }
-            }
-        }
 
-        $a = function ($data, &$all = [], $group = [], $val = null, $i = 0) use (&$a){
-            if (isset($val)){
-                array_push($group, $val);
-            }
-
-            if ($i >= count($data)){
-                array_push($all, $group);
-            }else{
-                foreach ($data[$i] as $v){
-                    $a($data, $all, $group, $v, $i + 1);
+        $all = [];
+        $a = function ($it, $keys = [], &$prevKey = '') use (&$a, &$all){
+            while ($it->valid()){
+                if ($it->hasChildren()){
+                    $keys[] = $it->key();
+                    $a($it->getChildren(), $keys);
+                } else {
+                    $curKey = implode('.', $keys);
+                    
+                    //drill down to prop and generate a chain with value at end
+                    $cnt = count($keys);
+                    $item = [];
+                    $push = &$item;
+                    for ($i = 0; $i < $cnt; $i++){
+                        $push[$keys[$i]] = [];
+                        $push = &$push[$keys[$i]];
+                    }
+                    $push = $it->current();
+                    
+                    $all[] = $item;
+                    
+                    //same property being alternated
+                    if ($curKey == $prevKey){
+                        
+                    }
+                    echo "$curKey vs $prevKey" . ':' . $it->current() . PHP_EOL;
+                    $prevKey = $curKey;
                 }
+                $it->next();
             }
+        };
+
+        $iterator = new \RecursiveArrayIterator($combos);
+        echo PHP_EOL;
+        iterator_apply($iterator, $a, [$iterator]);
+        die();
+
+        $b = function($val, $keys = [], array &$all = [[]], $build = '') use (&$b){
+            if (!is_array($val)){
+                //trash last key
+                array_pop($keys);
+                
+                //rewind to prop
+                $item = [];
+                $ref = &$item;
+                foreach ($keys as $k){
+                    $ref[$k] = isset($ref[$k]) ? $ref[$k] : [];
+                    $ref = &$ref[$k];
+                }
+                //set prop
+                $ref = $val;
+                
+                $all[$build] = $item;
+                return;
+            }
+            
+            foreach ($val as $k => $v){
+                $copy = $keys;
+                $copy[] = $k;
+                $build .= '.' . $k;
+                $b($v, $copy, $all, $build);
+            }
+            
             return $all;
         };
         
-        $b = function($val, $key = []) use (&$b){
-            if (!is_array($val)){
-                array_pop($key); //trash last key
-                $chain = [];
-                $prop = &$chain;
-                foreach ($key as $k){
-                    if (!isset($prop[$k])){
-                        $prop[$k] = [];
-                    }
-                    $prop = &$prop[$k];
-                }
-                $prop = $val;
-                return $chain;
-            }
-            
-            $chain = [];
-            foreach ($val as $k => $v){
-                $k2 = $key;
-                $k2[] = $k;
-                $chain[] = $b($v, $k2);
-            }
-            
-            return $chain;
-        };
-        
-        $a = function(array $data) use ($b){
-            $ret = [];
-            
-            foreach ($data as $k => $d){
-                $ret = $b($d, [$k]);
-                if ($ret){
-                    
-                }
-            }
-        };
-        
-        $foo = $a($combos);
+        $foo = $b($combos);
         $this->assertEquals([], Permutator::permutate([]));
         
         try{    
