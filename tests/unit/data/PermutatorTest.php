@@ -307,38 +307,53 @@ SQL;
         $perms = [];
         $combos = [
             'a' => [1,2],
-            'b' => ['b0' => ['b00', 'b01'], 'b1' => ['b10', 'b11']],
-            'c' => ['c0', 'c1']
+            'b' => ['bs', 'bf' => ['b0' => ['b00', 'b01', 'b02']]],
+            'd' => ['d0' => ['d00', 'd01'], 'd1' => ['d10', 'd11']],
         ];
 
-        $all = [];
-        $a = function ($it, $keys = [], &$prevKey = '') use (&$a, &$all){
+        $all = [[]];
+        $a = function ($it, $chain = [], &$prevKey = '') use (&$a, &$all){
             while ($it->valid()){
                 if ($it->hasChildren()){
-                    $keys[] = $it->key();
-                    $a($it->getChildren(), $keys);
-                } else {
-                    $curKey = implode('.', $keys);
-                    
-                    //drill down to prop and generate a chain with value at end
-                    $cnt = count($keys);
-                    $item = [];
-                    $push = &$item;
-                    for ($i = 0; $i < $cnt; $i++){
-                        $push[$keys[$i]] = [];
-                        $push = &$push[$keys[$i]];
-                    }
-                    $push = $it->current();
-                    
-                    $all[] = $item;
-                    
-                    //same property being alternated
-                    if ($curKey == $prevKey){
-                        
-                    }
-                    echo "$curKey vs $prevKey" . ':' . $it->current() . PHP_EOL;
-                    $prevKey = $curKey;
+                    $key = $it->key();
+                    $chain[] = $key; 
+                    $a($it->getChildren(), $chain, $prevKey);
+                    $it->next();
+                    $key = array_search($key, $chain);
+                    unset($chain[$key]);
+                    continue;
                 }
+
+                $curKey = implode('<.>', $chain);
+                
+                $debug = [$curKey, $it->current()];
+                echo implode(' ', $debug) . PHP_EOL;
+
+                //drill down to prop and generate a chain with value at end
+                $item = [];
+                $push = &$item;
+                foreach ($chain as $idx){
+                    $push[$idx] = [];
+                    $push = &$push[$idx];
+                }
+                $push = $it->current();
+                
+                //same property being alternated
+                if ($curKey == $prevKey){
+                    //copy all records and add to set with property overridden
+                    $dupes = $all;
+                    foreach ($dupes as $record){
+                        $all[] = array_merge($record, $item);
+                    }
+                }else{
+                    //different property alternated
+                    //attach new property to all existing records
+                    foreach ($all as &$record){
+                        $record = array_merge_recursive($record, $item);
+                    }
+                }
+
+                $prevKey = $curKey;
                 $it->next();
             }
         };
@@ -346,6 +361,9 @@ SQL;
         $iterator = new \RecursiveArrayIterator($combos);
         echo PHP_EOL;
         iterator_apply($iterator, $a, [$iterator]);
+        foreach ($all as $r){
+            echo json_encode($r) . PHP_EOL;
+        }
         die();
 
         $b = function($val, $keys = [], array &$all = [[]], $build = '') use (&$b){
