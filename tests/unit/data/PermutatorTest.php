@@ -306,38 +306,26 @@ SQL;
     function permutate(){
         $perms = [];
         $combos = [
-            'a' => [1,2],
-            'b' => ['bs', 'bf' => ['b0' => ['b00', 'b01', 'b02']]],
+            'a' => [0 => 1, 1 => 2],
+            'b' => ['bs', ['bn0', 'bn1'], 'bf' => ['b0' => ['b00', 'b01', 'b02']]],
             'd' => ['d0' => ['d00', 'd01'], 'd1' => ['d10', 'd11']],
         ];
 
-        $all = [[]];
-        $a = function ($it, $chain = [], &$prevKey = '') use (&$a, &$all){
-            while ($it->valid()){
-                if ($it->hasChildren()){
-                    $key = $it->key();
-                    $chain[] = $key; 
-                    $a($it->getChildren(), $chain, $prevKey);
-                    $it->next();
-                    $key = array_search($key, $chain);
-                    unset($chain[$key]);
-                    continue;
-                }
-
+        $a = function ($data, $chain = [], &$prevKey = '', &$all = [[]]) use (&$a){
+            if (!is_array($data)){
                 $curKey = implode('<.>', $chain);
-                
-                $debug = [$curKey, $it->current()];
+                $debug = [$curKey, $data];
                 echo implode(' ', $debug) . PHP_EOL;
-
-                //drill down to prop and generate a chain with value at end
-                $item = [];
-                $push = &$item;
-                foreach ($chain as $idx){
-                    $push[$idx] = [];
-                    $push = &$push[$idx];
-                }
-                $push = $it->current();
                 
+                //create sample item
+                $item = [];
+                $ref = &$item;
+                foreach ($chain as $c){
+                    $ref[$c] = [];
+                    $ref = &$ref[$c];
+                }
+                $ref = $data;
+
                 //same property being alternated
                 if ($curKey == $prevKey){
                     //copy all records and add to set with property overridden
@@ -349,18 +337,24 @@ SQL;
                     //different property alternated
                     //attach new property to all existing records
                     foreach ($all as &$record){
-                        $record = array_merge_recursive($record, $item);
+                        $record = array_merge($record, $item);
                     }
                 }
-
+                
                 $prevKey = $curKey;
-                $it->next();
+                return;
             }
+            
+            foreach ($data as $k => $v){
+                $chain[] = $k;
+                $a($v, $chain, $prevKey, $all);
+                array_pop($chain);
+            }
+            
+            return $all;
         };
-
-        $iterator = new \RecursiveArrayIterator($combos);
         echo PHP_EOL;
-        iterator_apply($iterator, $a, [$iterator]);
+        $all = $a($combos);
         foreach ($all as $r){
             echo json_encode($r) . PHP_EOL;
         }
